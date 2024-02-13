@@ -1,0 +1,16 @@
+-i https://pypi.org/simple
+altgraph==0.17.4
+colorama==0.4.6; sys_platform == 'win32'
+iniconfig==2.0.0; python_version >= '3.7'
+mypy==1.8.0; python_version >= '3.8'
+mypy-extensions==1.0.0; python_version >= '3.5'
+packaging==23.2; python_version >= '3.7'
+pefile==2023.2.7; sys_platform == 'win32'
+pluggy==1.4.0; python_version >= '3.8'
+pyinstaller==6.4.0; python_version < '3.13' and python_version >= '3.8'
+pyinstaller-hooks-contrib==2024.1; python_version >= '3.7'
+pytest==8.0.0; python_version >= '3.8'
+pywin32-ctypes==0.2.2; sys_platform == 'win32'
+setuptools==69.1.0; python_version >= '3.8'
+typing-extensions==4.9.0; python_version >= '3.8'
+watchdog==4.0.0; python_version >= '3.8'
