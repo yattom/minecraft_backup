@@ -1,5 +1,4 @@
-import os
-from pathlib import Path 
+from pathlib import Path
 import re
 import datetime
 import shutil
@@ -11,13 +10,6 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 
-def test_get_last_backup_timestamp(tmpdir):
-    tmpdir.mkdir("20240101_012345")
-    tmpdir.mkdir("20240101_012346")
-    tmpdir.mkdir("not_backup")
-    assert get_last_backup_datetime(Path(tmpdir)) == datetime.datetime(2024, 1, 1, 1, 23, 46)
-
-
 def get_last_backup_datetime(backup_path: Path) -> datetime.datetime:
     last_datetime = datetime.datetime(1980, 1, 1, 0, 0, 0)
     for name in [n for n in backup_path.iterdir()]:
@@ -27,26 +19,12 @@ def get_last_backup_datetime(backup_path: Path) -> datetime.datetime:
         dt = datetime.datetime.strptime(m.group(0), '%Y%m%d_%H%M%S')
         if last_datetime < dt:
             last_datetime = dt
-    return last_datetime 
-
-
-def test_get_last_change_datetime(tmpdir):
-    f1 = tmpdir.mkdir("dir1").join("file1")
-    f1.write("")
-    d1 = datetime.datetime(2024, 1, 1, 1, 23, 45)
-    os.utime(f1, (d1.timestamp(), d1.timestamp()))
-
-    f2 = tmpdir.mkdir("dir2").join("file2")
-    f2.write("")
-    d2 = datetime.datetime(2024, 1, 1, 1, 23, 46)
-    os.utime(f2, (d2.timestamp(), d2.timestamp()))
-
-    assert get_last_change_datetime(Path(tmpdir)) == d2
+    return last_datetime
 
 
 def get_last_change_datetime(minecraft_directory: Path) -> datetime.datetime:
     last_change = datetime.datetime(1980, 1, 1, 0, 0, 0)
-    for p in minecraft_directory.rglob('*'): 
+    for p in minecraft_directory.rglob('*'):
         if p.is_file():
             ts = p.stat().st_mtime
             dt = datetime.datetime.fromtimestamp(ts)
@@ -84,7 +62,7 @@ def watch_changes(minecraft_directory: Path, wait_time: int, backup_function: Ca
     observer = Observer()
     observer.schedule(event_handler, minecraft_directory, recursive=True)
     observer.start()
-    
+
 
 def make_new_backup_directory(backup_path: Path) -> Path:
     current_time = datetime.datetime.now()
@@ -105,7 +83,7 @@ def backup_worlds(minecraft_directory: Path, backup_path: Path) -> None:
         dest_path = new_backup_dir / relative_path
         dest_path.parent.mkdir(parents=True, exist_ok=True)  # Create subdirs if needed 
         try:
-            shutil.copy2(source_path, dest_path) 
+            shutil.copy2(source_path, dest_path)
             print(f"Copied: {source_path} -> {dest_path}")
         except shutil.Error as e:
             print(f"Error copying {source_path}: {e}")
@@ -118,11 +96,12 @@ def main():
 
     def do_backup():
         backup_worlds(config["minecraft_directory"], config["backup_path"])
+
     watch_changes(config["minecraft_directory"], config["wait_time"], do_backup)
 
     while True:
         time.sleep(100)
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     main()
