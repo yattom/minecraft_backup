@@ -34,6 +34,7 @@ def t0():
 
 class T:
     _10SEC = timedelta(seconds=10)
+    # noinspection NonAsciiCharacters
     _ε = timedelta(seconds=1)
 
 

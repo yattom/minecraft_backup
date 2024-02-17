@@ -60,7 +60,7 @@ def watch_changes(minecraft_directory: Path, wait_time: int, backup_function: Ca
 
     event_handler = BackupHandler(backup_function=backup_function, wait_time=wait_time)
     observer = Observer()
-    observer.schedule(event_handler, minecraft_directory, recursive=True)
+    observer.schedule(event_handler, str(minecraft_directory), recursive=True)
     observer.start()
 
 
