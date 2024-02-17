@@ -89,6 +89,27 @@ def backup_worlds(minecraft_directory: Path, backup_path: Path) -> None:
             print(f"Error copying {source_path}: {e}")
 
 
+class BackupScheduler:
+    def __init__(self):
+        self.last_modification_time = None
+        self.last_backup_time = None
+
+    def needs_backup(self, upon) -> bool:
+        if not self.last_modification_time:
+            return False
+        if not self.last_backup_time:
+            return True
+        if self.last_backup_time > self.last_modification_time:
+            return False
+        return self.last_modification_time < upon
+
+    def record_modification(self, modification_time: datetime.datetime) -> None:
+        self.last_modification_time = modification_time
+
+    def record_backup_execution(self, backup_time: datetime.datetime) -> None:
+        self.last_backup_time = backup_time
+
+
 def main():
     config = read_config()
     if get_last_backup_datetime(config["backup_path"]) < get_last_change_datetime(config["minecraft_directory"]):
