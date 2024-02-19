@@ -91,23 +91,44 @@ def backup_worlds(minecraft_directory: Path, backup_path: Path) -> None:
 
 class BackupScheduler:
     def __init__(self):
-        self.last_modification_time = None
-        self.last_backup_time = None
+        self.last_modification_time: datetime.datetime = None
+        self.last_backup_time: datetime.datetime = None
 
     def needs_backup(self, upon) -> bool:
-        if not self.last_modification_time:
+        if self.no_recorded_modification():
             return False
-        if not self.last_backup_time:
+        if self.no_backup_ever():
             return True
-        if self.last_backup_time > self.last_modification_time:
+        if self.updated_since_last_backup():
+            return self.is_safe_margin_passed_since_last_modification(upon)
+        return False
+
+    def is_safe_margin_passed_since_last_modification(self, upon):
+        return self.last_modification_time + datetime.timedelta(seconds=5) < upon
+
+    def updated_since_last_backup(self):
+        if self.no_recorded_modification():
             return False
-        return self.last_modification_time < upon
+        if self.no_backup_ever():
+            return True
+        return self.last_backup_time < self.last_modification_time
+
+    def no_backup_ever(self):
+        return not self.last_backup_time
+
+    def no_recorded_modification(self):
+        return not self.last_modification_time
 
     def record_modification(self, modification_time: datetime.datetime) -> None:
         self.last_modification_time = modification_time
 
     def record_backup_execution(self, backup_time: datetime.datetime) -> None:
         self.last_backup_time = backup_time
+
+    def next_check_time(self, last_checked: datetime.datetime) -> datetime.datetime:
+        if self.updated_since_last_backup() and not self.is_safe_margin_passed_since_last_modification(last_checked):
+            return last_checked + datetime.timedelta(seconds=5)
+        return last_checked + datetime.timedelta(minutes=5)
 
 
 def main():
