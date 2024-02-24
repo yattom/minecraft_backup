@@ -39,7 +39,7 @@ def get_last_change_datetime(minecraft_directory: Path) -> datetime.datetime:
 class Config:
     minecraft_directory: Path
     backup_path: Path
-    wait_time: int
+    backup_interval: datetime.timedelta
 
 
 def read_config() -> Config:
@@ -48,13 +48,13 @@ def read_config() -> Config:
 
     assert "minecraft_directory" in config
     assert "backup_path" in config
-    assert "wait_time" in config
+    assert "backup_interval_minutes" in config
     config["minecraft_directory"] = Path(config["minecraft_directory"])
     config["backup_path"] = Path(config["backup_path"])
     return Config(
         minecraft_directory=Path(config["minecraft_directory"]),
         backup_path=Path(config["backup_path"]),
-        wait_time=config["wait_time"],
+        backup_interval=datetime.timedelta(minutes=config["backup_interval_minutes"]),
     )
 
 
@@ -100,7 +100,10 @@ def backup_worlds(minecraft_directory: Path, backup_path: Path) -> None:
 
 
 class BackupScheduler:
-    def __init__(self):
+    DENOUNCEMENT_TIME = datetime.timedelta(seconds=5)
+
+    def __init__(self, backup_interval: datetime.timedelta = datetime.timedelta(minutes=5)):
+        self.backup_interval = backup_interval
         self.last_modification_time: datetime.datetime = None
         self.last_backup_time: datetime.datetime = None
 
@@ -114,7 +117,7 @@ class BackupScheduler:
         return False
 
     def is_safe_margin_passed_since_last_modification(self, upon):
-        return self.last_modification_time + datetime.timedelta(seconds=5) < upon
+        return self.last_modification_time + BackupScheduler.DENOUNCEMENT_TIME < upon
 
     def updated_since_last_backup(self):
         if self.no_recorded_modification():
@@ -131,12 +134,15 @@ class BackupScheduler:
 
     def next_check_time(self, last_checked: datetime.datetime) -> datetime.timedelta:
         if self.updated_since_last_backup() and not self.is_safe_margin_passed_since_last_modification(last_checked):
-            return datetime.timedelta(seconds=5)
-        return datetime.timedelta(minutes=5)
+            return self.next_check_time_after_denouncement_wait(last_checked)
+        return self.backup_interval
+
+    def next_check_time_after_denouncement_wait(self, last_checked):
+        return BackupScheduler.DENOUNCEMENT_TIME - (last_checked - self.last_modification_time)
 
 
 def start_auto_backup(config: Config, do_backup: Callable[[], None]):
-    scheduler = BackupScheduler()
+    scheduler = BackupScheduler(config.backup_interval)
     scheduler.last_modification_time = get_last_change_datetime(config.minecraft_directory)
     scheduler.last_backup_time = get_last_backup_datetime(config.backup_path)
     start_watch_for_modification(config.minecraft_directory, scheduler)

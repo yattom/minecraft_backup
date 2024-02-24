@@ -35,6 +35,7 @@ def t0():
 class T:
     _10SEC = timedelta(seconds=10)
     _5SEC = timedelta(seconds=5)
+    _1SEC = timedelta(seconds=1)
     _1MIN = timedelta(minutes=1)
     _2MIN = timedelta(minutes=2)
     # noinspection NonAsciiCharacters
@@ -77,5 +78,5 @@ class TestBackupTrigger:
         def test_5sec_safe_margin(self, t0):
             sut = BackupScheduler()
             sut.last_backup_time = t0 - T._1MIN
-            sut.last_modification_time = t0
-            assert sut.next_check_time(t0) == T._5SEC
+            sut.last_modification_time = t0 - T._1SEC
+            assert sut.next_check_time(t0) == T._5SEC - T._1SEC

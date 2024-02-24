@@ -1,0 +1,3 @@
+minecraft_directory = 'C:\path\to\minecraft\data\directory'
+backup_path = 'C:\path\to\backup\directory'
+backup_interval_minutes = 5
