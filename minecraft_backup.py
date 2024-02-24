@@ -1,8 +1,10 @@
+import sys
+import traceback
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import datetime
 import shutil
-import threading
 import time
 import tomllib
 from typing import Callable
@@ -33,7 +35,14 @@ def get_last_change_datetime(minecraft_directory: Path) -> datetime.datetime:
     return last_change
 
 
-def read_config():
+@dataclass
+class Config:
+    minecraft_directory: Path
+    backup_path: Path
+    wait_time: int
+
+
+def read_config() -> Config:
     with open("config.toml", "rb") as f:
         config = tomllib.load(f)
 
@@ -42,23 +51,24 @@ def read_config():
     assert "wait_time" in config
     config["minecraft_directory"] = Path(config["minecraft_directory"])
     config["backup_path"] = Path(config["backup_path"])
-    return config
+    return Config(
+        minecraft_directory=Path(config["minecraft_directory"]),
+        backup_path=Path(config["backup_path"]),
+        wait_time=config["wait_time"],
+    )
 
 
-def watch_changes(minecraft_directory: Path, wait_time: int, backup_function: Callable[[], None]):
-    class BackupHandler(FileSystemEventHandler):
-        def __init__(self, backup_function, wait_time=5):
-            self.backup_function = backup_function
-            self.wait_time = wait_time
-            self.debounce_timer = None
+def start_watch_for_modification(minecraft_directory: Path, recorder: 'BackupScheduler'):
+    class ModificationWatcher(FileSystemEventHandler):
+        def __init__(self):
+            self.recorder = recorder
 
-        def on_any_event(self, event):
-            if self.debounce_timer is not None:
-                self.debounce_timer.cancel()
-            self.debounce_timer = threading.Timer(self.wait_time, self.backup_function)
-            self.debounce_timer.start()
+        def on_modified(self, event):
+            scheduler = self.recorder
+            time = datetime.datetime.now()
+            scheduler.last_modification_time = time
 
-    event_handler = BackupHandler(backup_function=backup_function, wait_time=wait_time)
+    event_handler = ModificationWatcher()
     observer = Observer()
     observer.schedule(event_handler, str(minecraft_directory), recursive=True)
     observer.start()
@@ -84,7 +94,7 @@ def backup_worlds(minecraft_directory: Path, backup_path: Path) -> None:
         dest_path.parent.mkdir(parents=True, exist_ok=True)  # Create subdirs if needed 
         try:
             shutil.copy2(source_path, dest_path)
-            print(f"Copied: {source_path} -> {dest_path}")
+            print(f"Copied: {relative_path}")
         except shutil.Error as e:
             print(f"Error copying {source_path}: {e}")
 
@@ -119,30 +129,37 @@ class BackupScheduler:
     def no_recorded_modification(self):
         return not self.last_modification_time
 
-    def record_modification(self, modification_time: datetime.datetime) -> None:
-        self.last_modification_time = modification_time
-
-    def record_backup_execution(self, backup_time: datetime.datetime) -> None:
-        self.last_backup_time = backup_time
-
-    def next_check_time(self, last_checked: datetime.datetime) -> datetime.datetime:
+    def next_check_time(self, last_checked: datetime.datetime) -> datetime.timedelta:
         if self.updated_since_last_backup() and not self.is_safe_margin_passed_since_last_modification(last_checked):
-            return last_checked + datetime.timedelta(seconds=5)
-        return last_checked + datetime.timedelta(minutes=5)
+            return datetime.timedelta(seconds=5)
+        return datetime.timedelta(minutes=5)
+
+
+def start_auto_backup(config: Config, do_backup: Callable[[], None]):
+    scheduler = BackupScheduler()
+    scheduler.last_modification_time = get_last_change_datetime(config.minecraft_directory)
+    scheduler.last_backup_time = get_last_backup_datetime(config.backup_path)
+    start_watch_for_modification(config.minecraft_directory, scheduler)
+
+    while True:
+        if scheduler.needs_backup(datetime.datetime.now()):
+            do_backup()
+            scheduler.last_backup_time = datetime.datetime.now()
+        time.sleep(scheduler.next_check_time(datetime.datetime.now()).total_seconds())
 
 
 def main():
     config = read_config()
-    if get_last_backup_datetime(config["backup_path"]) < get_last_change_datetime(config["minecraft_directory"]):
-        backup_worlds(config["minecraft_directory"], config["backup_path"])
 
     def do_backup():
-        backup_worlds(config["minecraft_directory"], config["backup_path"])
+        backup_worlds(config.minecraft_directory, config.backup_path)
 
-    watch_changes(config["minecraft_directory"], config["wait_time"], do_backup)
-
-    while True:
-        time.sleep(100)
+    try:
+        start_auto_backup(config, do_backup)
+    except:
+        traceback.print_exc()
+        input("Press Enter to exit")
+        sys.exit(1)
 
 
 if __name__ == '__main__':
